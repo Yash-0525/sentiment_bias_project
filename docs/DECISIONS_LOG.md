@@ -93,13 +93,18 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 
 ---
 
+| D22 | 2 | Phase 2 seq_len default = **256** (paper 512). Tokenizer = **gpt2**. Full article split **28,475/60/60** kept. Sensitive lists loaded from Appendix A into `src/sensitive_attributes.py` (also covers Phase 3 lists). | GPT-2 context and T4 VRAM; packing at 512 doubles tokens/step. Split rule unchanged. | **LOCKED** |
+| D23 | 2 | Phase 3 sensitive lists shipped early inside Phase 2 so packed sequences can be flagged for Step-3 debiasing subset. Templates (Phase 4) still evaluation-only and **not** written into any training file. | Paper p.70 | **LOCKED** |
+
+---
+
 ## Project status checklist
 
 ```
-PHASE  0  Paper understanding .................... DONE (this document + chat walkthrough)
-PHASE  1  Environment + project setup ............ DONE (Colab + Kaggle paths written & tested; awaiting your run)
-PHASE  2  Dataset ................................ PENDING
-PHASE  3  Sensitive attributes ................... PENDING
+PHASE  0  Paper understanding .................... DONE
+PHASE  1  Environment + project setup ............ DONE (code ready; user Kaggle run in progress / verify)
+PHASE  2  Dataset ................................ IN PROGRESS (code pushed; awaiting Kaggle run output)
+PHASE  3  Sensitive attributes ................... DONE (lists in src/sensitive_attributes.py; used by Phase 2)
 PHASE  4  Sentence templates ..................... PENDING
 PHASE  5  Baseline language model ................ PENDING
 PHASE  6  Baseline bias evaluation ............... PENDING
