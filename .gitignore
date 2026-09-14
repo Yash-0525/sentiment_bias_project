@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# data & artefacts — these live on Google Drive, never in git
+data/
+models/
+results/
+plots/
+logs/
+*.pt
+*.bin
+*.safetensors
+*.csv
+# ...but keep any committed result tables that we explicitly track
+!results/**/*.csv
+!docs/**/*.csv
+
+# env
+.venv/
+venv/
+.env

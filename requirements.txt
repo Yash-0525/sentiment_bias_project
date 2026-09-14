@@ -1,0 +1,42 @@
+# ============================================================
+#  Reducing Sentiment Bias in Language Models
+#  via Counterfactual Evaluation  —  reproduction
+#  Phase 1 requirements
+# ============================================================
+#
+#  DO NOT pip-install torch on Colab — it is preinstalled with CUDA.
+#  The line below is for LOCAL installs only. On Colab, comment it out.
+#
+#  Install on Colab with:
+#      %pip install -r requirements.txt
+#
+#  Everything here is required by a specific later phase. Nothing is
+#  speculative. Deliberately EXCLUDED: tensorflow/tensorflow-hub (the
+#  paper's Universal Sentence Encoder — replaced, see decision D13),
+#  wandb/tensorboard (not needed), accelerate/peft (not fine-tuning
+#  with adapters), spacy (nltk covers the opinion-word classifier).
+# ============================================================
+
+# --- core numerics (preinstalled on Colab, pinned loosely) ---
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10            # scipy.stats.wasserstein_distance  -> Phase 13
+scikit-learn>=1.3      # classification_report, confusion_matrix -> Phase 8
+
+# --- deep learning ---
+# torch>=2.1           # Colab: PREINSTALLED. Local only, uncomment:
+# --extra-index-url https://download.pytorch.org/whl/cpu
+# torch
+transformers>=4.38     # GPT-2 LM, output_hidden_states    -> Phase 5
+datasets>=2.16         # WikiText-103 loader               -> Phase 2
+sentence-transformers>=2.5   # semantic similarity (S.S.)  -> Phase 15
+
+# --- text utilities ---
+nltk>=3.8              # sentence tokenisation for the opinion-word
+                       # classifier and for f_sh labelling  -> Phase 7/8
+
+# --- config / reporting ---
+PyYAML>=6.0            # config.yaml                       -> Phase 21
+tqdm>=4.65             # progress bars
+matplotlib>=3.7        # all figures                       -> Phase 17
+seaborn>=0.12          # density / distribution plots      -> Phase 6/17
