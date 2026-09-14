@@ -124,6 +124,23 @@ def load_f_sh(path: str | Path, device: torch.device) -> SentimentProjection:
     return m
 
 
+def lam_tag(lam: float | int) -> str:
+    """Stable folder suffix: 10.0 → '10', 1.5 → '1.5'."""
+    x = float(lam)
+    return str(int(x)) if x == int(x) else str(x)
+
+
+def run_dir_name(cfg: dict[str, Any]) -> str:
+    return f"{cfg['run_name']}_lam{lam_tag(cfg.get('lambda_fair', 0))}"
+
+
+def _disk_free_gb(path: Path) -> float:
+    import shutil
+
+    usage = shutil.disk_usage(path if path.exists() else path.parent)
+    return usage.free / (1024 ** 3)
+
+
 def save_debias_ckpt(
     *,
     model: SentimentBiasLM,
@@ -134,70 +151,128 @@ def save_debias_ckpt(
     cfg: dict[str, Any],
     metrics: dict[str, Any],
     tag: str,
-) -> Path:
-    run = cfg["run_name"]
-    # include lambda in path so λ grid does not overwrite
-    lam = cfg.get("lambda_fair", 0)
-    run_dir = f"{run}_lam{lam}"
+    save_optimizer: bool = False,
+) -> Path | None:
+    """
+    Disk-safe checkpoint for Kaggle (~20 GB cap).
+
+    Saves:
+      - hf_model/ weights only (~500 MB)  — REQUIRED
+      - state.json tiny metadata
+      - trainer_state.pt WITHOUT optimizer by default
+        (AdamW state ≈ 2× model size ≈ 1 GB; caused iostream / disk-full crash)
+
+    set save_optimizer=True only if you have >3 GB free and need exact resume.
+    """
+    run_dir = run_dir_name(cfg)
     ckpt_root = paths.checkpoint_dir(run_dir)
     out = ckpt_root / tag
     out.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(str(out / "hf_model"))
-    torch.save(
-        {
-            "step": step,
-            "best_val_ppl": best_val_ppl,
-            "optimizer": optimizer.state_dict(),
-            "scheduler": scheduler.state_dict() if scheduler is not None else None,
-            "config": cfg,
-            "metrics": metrics,
-        },
-        out / "trainer_state.pt",
-    )
+
+    free = _disk_free_gb(ckpt_root)
+    print(f"[ckpt] free disk ≈ {free:.2f} GB before save ({run_dir}/{tag})")
+    if free < 1.0:
+        print(
+            f"[ckpt] WARNING: only {free:.2f} GB free — skipping save to avoid crash. "
+            "Delete old step_* / smoke / baseline_smoke checkpoints and retry."
+        )
+        return None
+
+    try:
+        model.save_pretrained(str(out / "hf_model"))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ckpt] FAILED saving hf_model: {exc}")
+        return None
+
+    # lightweight trainer meta — never include optimizer unless asked
+    trainer_blob: dict[str, Any] = {
+        "step": step,
+        "best_val_ppl": best_val_ppl,
+        "config": cfg,
+        "metrics": metrics,
+        "optimizer": None,
+        "scheduler": None,
+    }
+    if save_optimizer and free >= 3.0:
+        try:
+            trainer_blob["optimizer"] = optimizer.state_dict()
+            trainer_blob["scheduler"] = (
+                scheduler.state_dict() if scheduler is not None else None
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ckpt] optimizer state skipped: {exc}")
+
+    try:
+        torch.save(trainer_blob, out / "trainer_state.pt")
+    except Exception as exc:  # noqa: BLE001
+        # weights already on disk — still usable
+        print(f"[ckpt] trainer_state.pt failed ({exc}); hf_model is still valid")
+
     state = {
         "tag": tag,
         "step": step,
         "best_val_ppl": best_val_ppl,
-        "lambda_fair": lam,
+        "lambda_fair": cfg.get("lambda_fair"),
         "mode": cfg.get("mode"),
         "metrics": metrics,
         "model_dir": str(out / "hf_model"),
         "run_dir": run_dir,
+        "optimizer_saved": bool(trainer_blob.get("optimizer")),
     }
-    (out / "state.json").write_text(json.dumps(state, indent=2))
-    paths.save_state(state, run_dir, tag=tag)
-    paths.save_state(state, run_dir, tag="latest")
-    print(f"[ckpt] {out} step={step} best_ppl={best_val_ppl:.4f}")
+    try:
+        (out / "state.json").write_text(json.dumps(state, indent=2))
+        paths.save_state(state, run_dir, tag=tag)
+        if tag != "latest":
+            paths.save_state(state, run_dir, tag="latest")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ckpt] state.json failed: {exc}")
+
+    print(f"[ckpt] saved {out} step={step} best_ppl={best_val_ppl:.4f}")
     return out
 
 
 def try_resume_debias(cfg, model, optimizer, scheduler, device):
     if not cfg.get("resume", True):
         return 0, float("inf")
-    lam = cfg.get("lambda_fair", 0)
-    run_dir = f"{cfg['run_name']}_lam{lam}"
+    run_dir = run_dir_name(cfg)
     ckpt_root = paths.checkpoint_dir(run_dir)
     for tag in ("latest", "best"):
-        path = ckpt_root / tag / "trainer_state.pt"
-        if not path.is_file():
+        hf = ckpt_root / tag / "hf_model"
+        state_pt = ckpt_root / tag / "trainer_state.pt"
+        state_json = ckpt_root / tag / "state.json"
+        if not hf.is_dir():
             continue
-        print(f"[resume] {path}")
-        blob = torch.load(path, map_location="cpu")
-        hf = path.parent / "hf_model"
-        if hf.is_dir():
-            resumed = SentimentBiasLM.from_pretrained(str(hf))
-            model.model.load_state_dict(resumed.model.state_dict())
-            model.to(device)
-        try:
-            optimizer.load_state_dict(blob["optimizer"])
-        except Exception as exc:  # noqa: BLE001
-            print("optimizer not loaded", exc)
-        if scheduler is not None and blob.get("scheduler"):
+        print(f"[resume] weights from {hf}")
+        resumed = SentimentBiasLM.from_pretrained(str(hf))
+        model.model.load_state_dict(resumed.model.state_dict())
+        model.to(device)
+        step, best = 0, float("inf")
+        if state_pt.is_file():
             try:
-                scheduler.load_state_dict(blob["scheduler"])
+                blob = torch.load(state_pt, map_location="cpu")
+                step = int(blob.get("step", 0))
+                best = float(blob.get("best_val_ppl", float("inf")))
+                if blob.get("optimizer") is not None:
+                    try:
+                        optimizer.load_state_dict(blob["optimizer"])
+                    except Exception as exc:  # noqa: BLE001
+                        print("[resume] optimizer not loaded:", exc)
+                if scheduler is not None and blob.get("scheduler"):
+                    try:
+                        scheduler.load_state_dict(blob["scheduler"])
+                    except Exception:
+                        pass
+            except Exception as exc:  # noqa: BLE001
+                print("[resume] trainer_state unreadable:", exc)
+        elif state_json.is_file():
+            try:
+                blob = json.loads(state_json.read_text())
+                step = int(blob.get("step", 0))
+                best = float(blob.get("best_val_ppl", float("inf")))
             except Exception:
                 pass
-        return int(blob.get("step", 0)), float(blob.get("best_val_ppl", float("inf")))
+        print(f"[resume] step={step} best_val_ppl={best}")
+        return step, best
     return 0, float("inf")
 
 
@@ -315,9 +390,7 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
     scheduler = build_scheduler(optimizer, int(cfg.get("warmup_steps", 50)), max_steps)
     start_step, best_val_ppl = try_resume_debias(cfg, model, optimizer, scheduler, device)
 
-    hist_path = paths.results_path(
-        f"{cfg['run_name']}_lam{lam}", "train_history.jsonl"
-    )
+    hist_path = paths.results_path(run_dir_name(cfg), "train_history.jsonl")
     hist_path.parent.mkdir(parents=True, exist_ok=True)
 
     micro = int(cfg["micro_batch_size"])
@@ -404,35 +477,61 @@ def train(cfg: dict[str, Any]) -> dict[str, Any]:
             with hist_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(row) + "\n")
             print(f"\n[eval] step={step} val_PPL={metrics['ppl']:.2f}")
+            # Always refresh latest weights after eval (no optimizer blob).
+            save_debias_ckpt(
+                model=model, optimizer=optimizer, scheduler=scheduler,
+                step=step, best_val_ppl=min(best_val_ppl, metrics["ppl"]),
+                cfg=cfg, metrics=row, tag="latest", save_optimizer=False,
+            )
             if metrics["ppl"] < best_val_ppl:
                 best_val_ppl = metrics["ppl"]
                 save_debias_ckpt(
                     model=model, optimizer=optimizer, scheduler=scheduler,
-                    step=step, best_val_ppl=best_val_ppl, cfg=cfg, metrics=row, tag="best",
+                    step=step, best_val_ppl=best_val_ppl, cfg=cfg, metrics=row,
+                    tag="best", save_optimizer=False,
                 )
             model.train()
 
-        if step % save_every == 0 or step == max_steps:
+        elif step % save_every == 0:
+            # mid-run latest only (weights + tiny json)
             save_debias_ckpt(
                 model=model, optimizer=optimizer, scheduler=scheduler,
                 step=step, best_val_ppl=best_val_ppl, cfg=cfg,
-                metrics={"step": step, "best_val_ppl": best_val_ppl}, tag="latest",
+                metrics={"step": step, "best_val_ppl": best_val_ppl},
+                tag="latest", save_optimizer=False,
             )
 
     pbar.close()
+    # final guarantee save
+    save_debias_ckpt(
+        model=model, optimizer=optimizer, scheduler=scheduler,
+        step=step, best_val_ppl=best_val_ppl, cfg=cfg,
+        metrics={"step": step, "best_val_ppl": best_val_ppl},
+        tag="latest", save_optimizer=False,
+    )
+    if best_val_ppl < float("inf"):
+        save_debias_ckpt(
+            model=model, optimizer=optimizer, scheduler=scheduler,
+            step=step, best_val_ppl=best_val_ppl, cfg=cfg,
+            metrics={"step": step, "best_val_ppl": best_val_ppl},
+            tag="best", save_optimizer=False,
+        )
+
+    rname = run_dir_name(cfg)
     summary = {
         "mode": mode,
         "lambda_fair": lam,
         "final_step": step,
         "best_val_ppl": best_val_ppl,
         "baseline_dir": str(bpath),
-        "run_dir": f"{cfg['run_name']}_lam{lam}",
-        "checkpoint_dir": str(paths.checkpoint_dir(f"{cfg['run_name']}_lam{lam}")),
+        "run_dir": rname,
+        "checkpoint_dir": str(paths.checkpoint_dir(rname)),
         "elapsed_sec": round(time.time() - t0, 1),
         "setting": "STUDENT/COMPUTE-LIMITED",
         "paper_loss": "L = L_LM(x) + λ L_fair  (L_LM on unperturbed x)",
+        "note": "Checkpoints store hf weights only (no Adam state) to fit Kaggle disk.",
     }
-    out = paths.results_path(f"{cfg['run_name']}_lam{lam}", "phase_debias_summary.json")
+    out = paths.results_path(rname, "phase_debias_summary.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
@@ -495,13 +594,13 @@ def main() -> int:
         cfg["resume"] = False
     if args.smoke:
         cfg["max_steps"] = 30
-        cfg["eval_every"] = 15
-        cfg["save_every"] = 15
+        cfg["eval_every"] = 30   # one eval+save at end only (saves disk)
+        cfg["save_every"] = 30
         cfg["max_train_sequences"] = 512
         cfg["micro_batch_size"] = 1
         cfg["grad_accum_steps"] = 4
         cfg["resume"] = False
-        print("[debias] SMOKE mode")
+        print("[debias] SMOKE mode (single final checkpoint)")
 
     train(cfg)
     return 0

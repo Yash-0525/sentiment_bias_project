@@ -22,8 +22,8 @@ micro_batch_size: 2
 grad_accum_steps: 8
 max_steps: 1000
 log_every: 20
-eval_every: 200
-save_every: 200
+eval_every: 250
+save_every: 250
 
 sensitive_only: true
 max_train_sequences: null

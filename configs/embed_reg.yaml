@@ -24,8 +24,9 @@ micro_batch_size: 2          # CF doubles forward cost
 grad_accum_steps: 8          # effective batch 16
 max_steps: 1000
 log_every: 20
-eval_every: 200
-save_every: 200
+eval_every: 250
+save_every: 250
+# Checkpoints: weights only (no Adam optimizer blob) — see train_debias.py
 
 # only sequences flagged has_sensitive=true (paper Step 3)
 sensitive_only: true
