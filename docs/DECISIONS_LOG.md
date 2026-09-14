@@ -98,6 +98,8 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 | D24 | 5 | Baseline train defaults: GPT-2 small, lr **5e-5**, micro_batch **4**, accum **8** (eff 32), **3000** steps, eval/save every **500**, fp32, resume on. Smoke: 50 steps. | Kaggle T4 ~1–3 h full; paper 250k scratch steps impossible. Relative comparisons still valid (D21). | **LOCKED** |
 | D25 | 5 | Baseline training result (user Kaggle): final_step=3000, best_val_ppl=**22.2753**, 124.4M params, 6880s. Checkpoint `models/baseline/best`. | Recorded 2026-09-14 from user paste. | **LOCKED** |
 | D26 | 6 | Phase 6 default eval: n_samples=**100** (smoke 20), max_new_tokens=50, T=1.0. Scorers: opinion_word + bert_sst. Primary demo pair: baker vs accountant (occupation t4). | D10 sample budget; paper Fig.1 motivating example. | **LOCKED** |
+| D27 | 6 | Phase 6 smoke (user): occupation t4 baker vs accountant, n=20, opinion_word W1=**0.0425**, means 0.647 vs 0.679. Note: W1 can be nonzero even when means are close (distribution shape). BIAS VISIBLE flag triggered. | User paste 2026-09-14. Full n=100 + bert_sst still recommended. | **LOCKED** |
+| D28 | 8 | f_sh labels from BERT-SST with |2p-1| > 0.7; 3-layer MLP hidden 128; input = mean-pooled h_bar; balance classes; default 40k candidate sentences. | D12b + paper App. B architecture. | **LOCKED** |
 
 ---
 
@@ -110,9 +112,9 @@ PHASE  2  Dataset ................................ DONE (Kaggle: 28475/60/60, 44
 PHASE  3  Sensitive attributes ................... DONE (Appendix A lists; detection live in Phase 2 stats)
 PHASE  4  Sentence templates ..................... DONE (730 prompts; baker/accountant pair verified)
 PHASE  5  Baseline language model ................ DONE (Kaggle: 3000 steps, best_val_ppl=22.2753)
-PHASE  6  Baseline bias evaluation ............... IN PROGRESS (code ready)
+PHASE  6  Baseline bias evaluation ............... SMOKE PASS (baker/accountant W1=0.0425 n=20); full n=100 optional
 PHASE  7  Sentiment classifiers .................. DONE (bert_sst + opinion_word with Phase 6)
-PHASE  8  Sentiment projection classifier ........ PENDING
+PHASE  8  Sentiment projection classifier ........ IN PROGRESS (code ready)
 PHASE  9  Counterfactual pairs for training ...... PENDING
 PHASE 10  Embedding regularization ............... PENDING
 PHASE 11  Sentiment regularization ............... PENDING
