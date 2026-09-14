@@ -103,9 +103,9 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 ```
 PHASE  0  Paper understanding .................... DONE
 PHASE  1  Environment + project setup ............ DONE (code ready; user Kaggle run in progress / verify)
-PHASE  2  Dataset ................................ IN PROGRESS (code pushed; awaiting Kaggle run output)
-PHASE  3  Sensitive attributes ................... DONE (lists in src/sensitive_attributes.py; used by Phase 2)
-PHASE  4  Sentence templates ..................... PENDING
+PHASE  2  Dataset ................................ DONE (Kaggle: 28475/60/60, 445592 train seqs, verified)
+PHASE  3  Sensitive attributes ................... DONE (Appendix A lists; detection live in Phase 2 stats)
+PHASE  4  Sentence templates ..................... IN PROGRESS (code ready; user runs on Kaggle)
 PHASE  5  Baseline language model ................ PENDING
 PHASE  6  Baseline bias evaluation ............... PENDING
 PHASE  7  Sentiment classifiers .................. PENDING
