@@ -1,0 +1,52 @@
+# PHASE 5 — Baseline LM (Step 1 of paper curriculum)
+# -------------------------------------------------
+# ORIGINAL PAPER (WikiText-103, App. B):
+#   model: Transformer-XL 18L d=1024, 257M, from scratch
+#   optimizer: Adam lr=2.5e-4
+#   seq_len: 512
+#   batch: 512
+#   steps: 250_000
+#   hardware: 128 TPUv3
+#
+# STUDENT / KAGGLE (decision D04, D21):
+#   model: GPT-2 small 12L d=768, 124M, FINE-TUNE from HF weights
+#   optimizer: AdamW lr=5e-5  (lower: fine-tune, not scratch)
+#   seq_len: 256
+#   micro_batch: 4, grad_accum: 8  → effective batch 32
+#   max_steps: 3000               (~1–2 h on T4; raise later if budget allows)
+#   precision: fp32 (decision D20)
+#   objective UNCHANGED: next-token cross-entropy
+#   NO fairness loss here
+#   NO evaluation templates in training data
+
+run_name: baseline
+model_name: gpt2
+seq_len: 256
+seed: 42
+
+# data produced by Phase 2
+data_dir: data/wikitext103/processed
+
+# optim
+lr: 5.0e-5
+weight_decay: 0.01
+betas: [0.9, 0.999]
+max_grad_norm: 1.0
+warmup_steps: 100
+
+# batching (fp32 on T4/P100)
+micro_batch_size: 4
+grad_accum_steps: 8
+# effective_batch = micro_batch_size * grad_accum_steps = 32
+
+# schedule
+max_steps: 3000
+log_every: 20
+eval_every: 500
+save_every: 500
+
+# dataloader
+num_workers: 2
+
+# resume
+resume: true

@@ -95,6 +95,7 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 
 | D22 | 2 | Phase 2 seq_len default = **256** (paper 512). Tokenizer = **gpt2**. Full article split **28,475/60/60** kept. Sensitive lists loaded from Appendix A into `src/sensitive_attributes.py` (also covers Phase 3 lists). | GPT-2 context and T4 VRAM; packing at 512 doubles tokens/step. Split rule unchanged. | **LOCKED** |
 | D23 | 2 | Phase 3 sensitive lists shipped early inside Phase 2 so packed sequences can be flagged for Step-3 debiasing subset. Templates (Phase 4) still evaluation-only and **not** written into any training file. | Paper p.70 | **LOCKED** |
+| D24 | 5 | Baseline train defaults: GPT-2 small, lr **5e-5**, micro_batch **4**, accum **8** (eff 32), **3000** steps, eval/save every **500**, fp32, resume on. Smoke: 50 steps. | Kaggle T4 ~1–3 h full; paper 250k scratch steps impossible. Relative comparisons still valid (D21). | **LOCKED** |
 
 ---
 
@@ -105,7 +106,8 @@ PHASE  0  Paper understanding .................... DONE
 PHASE  1  Environment + project setup ............ DONE (code ready; user Kaggle run in progress / verify)
 PHASE  2  Dataset ................................ DONE (Kaggle: 28475/60/60, 445592 train seqs, verified)
 PHASE  3  Sensitive attributes ................... DONE (Appendix A lists; detection live in Phase 2 stats)
-PHASE  4  Sentence templates ..................... IN PROGRESS (code ready; user runs on Kaggle)
+PHASE  4  Sentence templates ..................... DONE (730 prompts; baker/accountant pair verified)
+PHASE  5  Baseline language model ................ IN PROGRESS (code ready; user trains on Kaggle GPU)
 PHASE  5  Baseline language model ................ PENDING
 PHASE  6  Baseline bias evaluation ............... PENDING
 PHASE  7  Sentiment classifiers .................. PENDING
