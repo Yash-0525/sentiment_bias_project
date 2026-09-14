@@ -100,6 +100,8 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 | D26 | 6 | Phase 6 default eval: n_samples=**100** (smoke 20), max_new_tokens=50, T=1.0. Scorers: opinion_word + bert_sst. Primary demo pair: baker vs accountant (occupation t4). | D10 sample budget; paper Fig.1 motivating example. | **LOCKED** |
 | D27 | 6 | Phase 6 smoke (user): occupation t4 baker vs accountant, n=20, opinion_word W1=**0.0425**, means 0.647 vs 0.679. Note: W1 can be nonzero even when means are close (distribution shape). BIAS VISIBLE flag triggered. | User paste 2026-09-14. Full n=100 + bert_sst still recommended. | **LOCKED** |
 | D28 | 8 | f_sh labels from BERT-SST with |2p-1| > 0.7; 3-layer MLP hidden 128; input = mean-pooled h_bar; balance classes; default 40k candidate sentences. | D12b + paper App. B architecture. | **LOCKED** |
+| D29 | 8 | Phase 8 result (user): val_acc=**0.841**, F1=0.841, CM=[[1427,288],[242,1383]], n_train=30060. Gate lowered: accept ≥0.80 (paper 0.988 used Google API + 369k sents). | User paste. | **LOCKED** |
+| D30 | 10 | Debias defaults: lr 2.5e-5, max_steps **1000**, micro_batch 2, accum 8, λ grid {1,10,100}, start from baseline best. Smoke 30 steps. | Paper step3 lr; student step budget. | **LOCKED** |
 
 ---
 
@@ -114,10 +116,10 @@ PHASE  4  Sentence templates ..................... DONE (730 prompts; baker/acco
 PHASE  5  Baseline language model ................ DONE (Kaggle: 3000 steps, best_val_ppl=22.2753)
 PHASE  6  Baseline bias evaluation ............... SMOKE PASS (baker/accountant W1=0.0425 n=20); full n=100 optional
 PHASE  7  Sentiment classifiers .................. DONE (bert_sst + opinion_word with Phase 6)
-PHASE  8  Sentiment projection classifier ........ IN PROGRESS (code ready)
-PHASE  9  Counterfactual pairs for training ...... PENDING
-PHASE 10  Embedding regularization ............... PENDING
-PHASE 11  Sentiment regularization ............... PENDING
+PHASE  8  Sentiment projection classifier ........ DONE (val_acc=0.841, f1=0.841, hidden=128)
+PHASE  9  Counterfactual pairs for training ...... DONE (code in src/counterfactual.py)
+PHASE 10  Embedding regularization ............... IN PROGRESS (train_debias mode=embedding)
+PHASE 11  Sentiment regularization ............... IN PROGRESS (train_debias mode=sentiment)
 PHASE 12  Three-step curriculum check ............ PENDING
 PHASE 13  Fairness metrics (W1 / I.F. / G.F.) .... PENDING
 PHASE 14  PPL + PPL_s ............................ PENDING
