@@ -102,6 +102,7 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 | D28 | 8 | f_sh labels from BERT-SST with |2p-1| > 0.7; 3-layer MLP hidden 128; input = mean-pooled h_bar; balance classes; default 40k candidate sentences. | D12b + paper App. B architecture. | **LOCKED** |
 | D29 | 8 | Phase 8 result (user): val_acc=**0.841**, F1=0.841, CM=[[1427,288],[242,1383]], n_train=30060. Gate lowered: accept ≥0.80 (paper 0.988 used Google API + 369k sents). | User paste. | **LOCKED** |
 | D30 | 10 | Debias defaults: lr 2.5e-5, max_steps **1000**, micro_batch 2, accum 8, λ grid {1,10,100}, start from baseline best. Smoke 30 steps. | Paper step3 lr; student step budget. | **LOCKED** |
+| D31 | 16 | Option A lock: stop heavy train; finalize docs. Embed-Reg λ10 sheriff/designer opinion W1 0.1635→0.1422; Sent-Reg no pair gain; CF 99.4%; all PPL≈22.3. | User choice 2026-09-15. | **LOCKED** |
 
 ---
 
