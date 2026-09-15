@@ -1,84 +1,162 @@
 # Reducing Sentiment Bias in Language Models via Counterfactual Evaluation
-### A reproduction of Huang et al., *Findings of EMNLP 2020*, at student scale
 
----
+**Student-scale, method-faithful reproduction of**  
+Po-Sen Huang et al., *Findings of EMNLP 2020* —
+[paper](https://aclanthology.org/2020.findings-emnlp.7/) /
+[arXiv:1911.03064](https://arxiv.org/abs/1911.03064)
 
-## What this project does
-
-Given a prompt like *"My friend is a/an **baker**, and we..."*, a language model generates
-continuations. Change one word to **accountant** and the *sentiment distribution* of those
-continuations shifts. That shift is **counterfactual sentiment bias**.
-
-This project measures it with Wasserstein-1-based **Individual Fairness** and **Group Fairness**
-metrics, then reduces it with two regularizers on the model's hidden representations —
-**Embedding Regularization** and **Sentiment Regularization** — trained via the paper's
-three-step curriculum.
-
----
-
-## Read these first
-
-| File | What it is |
+| | |
 |---|---|
-| `docs/PHASE_0_paper_understanding.md` | The paper's methodology, explained, with page citations |
-| `docs/DECISIONS_LOG.md` | **Every design decision and why.** Read before changing anything. |
-| `docs/DATASET_VERIFICATION.md` | Live verification of WikiText-103 and WMT-19 availability |
+| **Status** | **Option A locked** — core curriculum complete; no further heavy training |
+| **Platform** | Kaggle GPU (Tesla T4) primary · Google Colab backup |
+| **Language model** | GPT-2 small (124M parameters), fine-tuned on WikiText-103 |
+| **Default branch** | `main` |
+| **Repository** | https://github.com/Yash-0525/sentiment_bias_project |
 
-## The operating rule
+---
 
-> **The notebook executes. Persistent storage stores. Git versions.**
+## One-sentence thesis
 
-Colab and Kaggle both wipe the VM when a session ends. Nothing valuable is ever written to an
-ephemeral path alone. Source code lives in git.
+We implement Huang et al.’s counterfactual sentiment-bias curriculum at student
+computational scale: bias is measurable, validation perplexity stays stable under
+debiasing, and **Embedding Regularization (λ = 10)** yields a modest opinion-word
+Wasserstein-1 reduction on a high-bias occupation pair, while **Sentiment
+Regularization** does not improve the locked pair probes under the same budget.
 
-| Platform | Writable root | Persistent? | What you must do |
-|---|---|---|---|
-| **Colab** | `/content/drive/MyDrive/...` | **Always**, once Drive is mounted | `paths.mount_drive()` (bootstrap does it) |
-| **Kaggle** | `/kaggle/working/...` | **Only if you opt in** | Session options → Persistence → **Files Only**, *or* end with **Save & Run All (Commit)** |
-| local | the git checkout | Always | nothing |
+---
 
-Kaggle's `/kaggle/working` is **not** persistent by default — this is the difference people
-lose work to. See `notebooks/kaggle_bootstrap.ipynb`.
+## Problem
 
-## Quick start — Colab
+Language models can change the *sentiment* of generated text when only one
+sensitive word in the prompt changes.
 
-```python
-from google.colab import drive
-drive.mount('/content/drive')
+**Example prompts (occupation template):**
 
-!git clone https://github.com/YOUR-USERNAME/sentiment_bias_project.git /content/sentiment_bias_project
+- *My friend is a **sheriff**, and we …*
+- *My friend is a **designer**, and we …*
 
-import os
-for d in ['data','models','results','plots','logs']:
-    os.makedirs(f'/content/drive/MyDrive/sentiment_bias_project/{d}', exist_ok=True)
-    if not os.path.lexists(f'/content/sentiment_bias_project/{d}'):
-        os.symlink(f'/content/drive/MyDrive/sentiment_bias_project/{d}',
-                   f'/content/sentiment_bias_project/{d}')
+If the distributions of sentiment scores over many sampled continuations differ
+systematically, the model exhibits **counterfactual sentiment bias**.
 
-%cd /content/sentiment_bias_project
-%pip install -r requirements.txt
-!python -m src.check_environment
-```
-Then: **Runtime → Change runtime type → T4 GPU**.
+This project:
 
-## Quick start — Kaggle
+1. **Measures** that bias with Wasserstein-1 (W1) distance between sentiment distributions.
+2. **Reduces** it with two training regularizers from the paper (Embedding Reg and Sentiment Reg).
+3. **Preserves** language-model quality (validation perplexity).
 
-Upload `notebooks/kaggle_bootstrap.ipynb` and run it top to bottom. In short:
+---
 
-1. **Accelerator → GPU T4 x2 or P100** (needs phone verification on your account).
-2. **Session options → Persistence → `Files Only`.**  ← do not skip this
-3. `!git clone <repo> /kaggle/working/sentiment_bias_project`
-4. `%pip install -r requirements.txt`  (do **not** pip-install torch — it's preinstalled with CUDA)
-5. `!python -m src.check_environment`
-6. End of session: **Save Version → Save & Run All (Commit)**, or download `models/` + `results/`.
+## Method (paper curriculum, student scale)
 
-## Tests
+### Three-step curriculum
 
-```
-python tests/test_kaggle_paths.py     # 14 checks on the Kaggle code path
-python -m src.check_environment       # 11 environment checks
-```
+| Step | What is trained | Loss |
+|------|-----------------|------|
+| **1 — Baseline LM** | GPT-2 small on WikiText-103 | Next-token cross-entropy only |
+| **2 — Sentiment projection \(f_{sh}\)** | 3-layer MLP on frozen LM hidden states | Classify strong positive / negative sentences |
+| **3 — Debiasing** | Continue LM on sequences that contain sensitive tokens | \(L = L_{LM}(x) + \lambda L_{\mathrm{fair}}\) |
 
-## Phase status
+**Critical paper rules we follow:**
 
-See the checklist at the bottom of `docs/DECISIONS_LOG.md`.
+- Evaluation templates are **never** used in any training step.
+- \(L_{LM}\) is computed on the **unperturbed** input \(x\) only.
+- Counterfactual \(\tilde{x}\) changes **only** the sensitive surface form.
+- \(\bar{h}\) = mean of the **last two** Transformer layers.
+
+### Two regularizers (Step 3)
+
+| Method | Fairness term |
+|--------|----------------|
+| **Embedding Regularization** | \(L_{\mathrm{fair}} = 1 - \cos(\bar{h}(x), \bar{h}(\tilde{x}))\) |
+| **Sentiment Regularization** | \(L_{\mathrm{fair}} = 1 - \cos(f_{sh}(\bar{h}(x)), f_{sh}(\bar{h}(\tilde{x})))\) with \(f_{sh}\) **frozen** |
+
+Student setting: \(\lambda = 10\), **1000** debiasing steps, learning rate
+\(2.5\times 10^{-5}\), **fp32**.
+
+### Evaluation
+
+- Fill paper occupation templates; sample **100** continuations (paper: 1000),
+  max **50** tokens, temperature **1.0**.
+- Score sentiment with:
+  - **Opinion-word** scorer (Hu & Liu lexicon): \(p/(p+n)\), else 0.5
+  - **BERT-SST** / DistilBERT-SST: \(P(\text{positive})\)
+- Report **pair-level W1** (lower = fairer), not full paper Individual Fairness
+  over all pairs.
+- Also report **validation perplexity**.
+
+---
+
+## Locked experimental results (Option A)
+
+> **Do not replace these with paper table numbers.**
+
+### Language modeling quality
+
+| Model | Validation PPL |
+|-------|----------------|
+| Baseline (3000 steps) | **22.2753** |
+| Embedding Reg λ=10 (1000 steps) | **22.2381** |
+| Sentiment Reg λ=10 (1000 steps) | **22.2984** |
+
+Debiasing did **not** destroy fluency (all ≈ 22.2–22.3).
+
+### Sentiment projection \(f_{sh}\)
+
+| Metric | Value |
+|--------|--------|
+| Validation accuracy | **0.8413** |
+| Architecture | MLP 768 → 128 → 128 → 2 |
+| Labels | BERT-SST with \(\lvert 2p-1\rvert > 0.7\) (Google API substitute) |
+
+### Counterfactual construction audit
+
+| Check | Result |
+|-------|--------|
+| Successful sensitive-token swaps | **497 / 500 = 99.4%** |
+
+### Pair probes (occupation template 4, n = 100)
+
+**Baker vs accountant** (small baseline gap)
+
+| Model | Opinion W1 | BERT-SST W1 |
+|-------|------------|-------------|
+| Baseline | 0.0377 | 0.0473 |
+| Embed-Reg λ=10 | 0.0923 | 0.0472 |
+| Sent-Reg λ=10 | 0.0482 | 0.0980 |
+
+**Sheriff vs designer** (high baseline bias — primary signal)
+
+| Model | Opinion W1 | BERT-SST W1 |
+|-------|------------|-------------|
+| Baseline | **0.1635** | **0.1793** |
+| **Embed-Reg λ=10** | **0.1422** (Δ = −0.0213) | 0.1803 |
+| Sent-Reg λ=10 | 0.1787 | 0.2289 |
+
+### Model selection (honest)
+
+| Criterion | Choice |
+|-----------|--------|
+| Best fairness on locked probes | **Embedding Reg λ=10** (sheriff–designer, opinion-word) |
+| Best / stable PPL | **Embedding Reg λ=10** (22.24) |
+| Sentiment Reg at λ=10 / 1k steps | **Not recommended** from these probes alone |
+| Full paper I.F. / G.F. / S.S. | **Not measured** in Option A lock |
+
+**Dataset:** WikiText-103, paper article split **28,475 / 60 / 60**, sequence
+length **256**, GPT-2 BPE.
+
+Full tables and discussion: [`reports/FINAL_RESULTS.md`](reports/FINAL_RESULTS.md)
+
+---
+
+## Repository structure
+
+```text
+sentiment_bias_project/
+├── README.md
+├── requirements.txt
+├── configs/               # baseline.yaml, embed_reg.yaml, sent_reg.yaml
+├── docs/                  # paper notes and decisions
+├── notebooks/             # Kaggle notebooks
+├── reports/               # report, PPT, viva, final results
+├── src/                   # all training and evaluation code
+└── tests/                 # unit tests
