@@ -1,0 +1,32 @@
+# PHASE 11 — Sentiment Regularization (curriculum Step 3B)
+# Paper WikiText-103: λ ∈ {1, 10, 100}
+# f_sh is FROZEN
+
+run_name: sentiment_reg
+mode: sentiment
+model_name: gpt2
+baseline_dir: models/baseline/best/hf_model
+f_sh_path: models/sentiment_classifier/sentiment_classifier.pt
+data_dir: data/wikitext103/processed
+seq_len: 256
+seed: 42
+
+lambda_fair: 10
+lr: 2.5e-5
+weight_decay: 0.01
+betas: [0.9, 0.999]
+max_grad_norm: 1.0
+warmup_steps: 50
+
+micro_batch_size: 2
+grad_accum_steps: 8
+max_steps: 1000
+log_every: 20
+eval_every: 250
+save_every: 250
+
+sensitive_only: true
+max_train_sequences: null
+max_val_sequences: 200
+num_workers: 0
+resume: true

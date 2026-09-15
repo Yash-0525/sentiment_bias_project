@@ -7,7 +7,8 @@ with earlier ones. **Do not contradict an entry without adding a new entry that 
 |---|---|---|---|---|
 | D01 | 0 | Primary source = `uploads/2020.findings-emnlp.7.pdf`, extracted to `paper/paper_full.txt` | User instruction: paper is PRIMARY SOURCE | LOCKED |
 | D02 | 0 | **User: use exactly the paper's datasets, add nothing new.** Primary = **WikiText-103** (paper-exact, 28,475/60/60). WMT-19 = documented partial track only. | Both verified live 2026-09-14. See `docs/DATASET_VERIFICATION.md`. WMT-19 has **no document boundaries** in the 2019 release, so the paper's article-level split is unreconstructable even with unlimited compute. | **LOCKED** |
-| D03 | 0 | Environment = **Colab and/or Kaggle for GPU work + local VS Code/Git for the code base.** `src/paths.py` auto-detects `colab` / `kaggle` / `local`, so the same code runs on either. | Both are free 16 GB GPUs. Colab: Drive mounts always persist. Kaggle: bigger published quota (30 h/wk) but `/kaggle/working` persists **only if you opt in**. See D19. | **LOCKED** |
+| D03 | 0 | Environment = **Kaggle PRIMARY (Option A)**; Colab is backup only. `src/paths.py` auto-detects `colab` / `kaggle` / `local`. | User chose Option A 2026-09-14. Kaggle: ~30 GPU-h/wk published quota. Persistence must be opted in (D19). | **LOCKED** |
+| D21 | 1 | Fidelity level = **L1 method-faithful** (not L0 bit-identical). WikiText-103 exact; GPT-2 small fine-tune; paper-exact losses/metrics/curriculum; 100 gen samples; BERT-SST + opinion-word; MiniLM for S.S. | Free single-GPU cannot run Transformer-XL-from-scratch + WMT-19. Central claim is relative baseline vs regularizers. | **LOCKED** |
 | D04 | 0 | LM = **fine-tune GPT-2 small (124M, 12 layers, d=768)** on WikiText-103 as Step 1 | User selected. 12 layers ⇒ `h̄ = mean(h^(11), h^(12))`, exactly the paper's last-two-layer rule. ~2 h on T4. | **LOCKED** |
 | D05 | 0 | `h̄(x) = mean(h^(L−1)(x), h^(L)(x))` — last **two** hidden layers, exactly as paper | Paper §4, p.69 | LOCKED |
 | D06 | 0 | `L_fairness = 1 − cosine(h̄(x), h̄(x̃))` for Embed-Reg; `1 − cosine(f_sh(h), f_sh(h̃))` for Sent-Reg | Paper §4, p.69 | LOCKED |
@@ -92,21 +93,34 @@ the subject of this metric suite is precedented by the paper, not a deviation fr
 
 ---
 
+| D22 | 2 | Phase 2 seq_len default = **256** (paper 512). Tokenizer = **gpt2**. Full article split **28,475/60/60** kept. Sensitive lists loaded from Appendix A into `src/sensitive_attributes.py` (also covers Phase 3 lists). | GPT-2 context and T4 VRAM; packing at 512 doubles tokens/step. Split rule unchanged. | **LOCKED** |
+| D23 | 2 | Phase 3 sensitive lists shipped early inside Phase 2 so packed sequences can be flagged for Step-3 debiasing subset. Templates (Phase 4) still evaluation-only and **not** written into any training file. | Paper p.70 | **LOCKED** |
+| D24 | 5 | Baseline train defaults: GPT-2 small, lr **5e-5**, micro_batch **4**, accum **8** (eff 32), **3000** steps, eval/save every **500**, fp32, resume on. Smoke: 50 steps. | Kaggle T4 ~1–3 h full; paper 250k scratch steps impossible. Relative comparisons still valid (D21). | **LOCKED** |
+| D25 | 5 | Baseline training result (user Kaggle): final_step=3000, best_val_ppl=**22.2753**, 124.4M params, 6880s. Checkpoint `models/baseline/best`. | Recorded 2026-09-14 from user paste. | **LOCKED** |
+| D26 | 6 | Phase 6 default eval: n_samples=**100** (smoke 20), max_new_tokens=50, T=1.0. Scorers: opinion_word + bert_sst. Primary demo pair: baker vs accountant (occupation t4). | D10 sample budget; paper Fig.1 motivating example. | **LOCKED** |
+| D27 | 6 | Phase 6 smoke (user): occupation t4 baker vs accountant, n=20, opinion_word W1=**0.0425**, means 0.647 vs 0.679. Note: W1 can be nonzero even when means are close (distribution shape). BIAS VISIBLE flag triggered. | User paste 2026-09-14. Full n=100 + bert_sst still recommended. | **LOCKED** |
+| D28 | 8 | f_sh labels from BERT-SST with |2p-1| > 0.7; 3-layer MLP hidden 128; input = mean-pooled h_bar; balance classes; default 40k candidate sentences. | D12b + paper App. B architecture. | **LOCKED** |
+| D29 | 8 | Phase 8 result (user): val_acc=**0.841**, F1=0.841, CM=[[1427,288],[242,1383]], n_train=30060. Gate lowered: accept ≥0.80 (paper 0.988 used Google API + 369k sents). | User paste. | **LOCKED** |
+| D30 | 10 | Debias defaults: lr 2.5e-5, max_steps **1000**, micro_batch 2, accum 8, λ grid {1,10,100}, start from baseline best. Smoke 30 steps. | Paper step3 lr; student step budget. | **LOCKED** |
+| D31 | 16 | Option A lock: stop heavy train; finalize docs. Embed-Reg λ10 sheriff/designer opinion W1 0.1635→0.1422; Sent-Reg no pair gain; CF 99.4%; all PPL≈22.3. | User choice 2026-09-15. | **LOCKED** |
+
+---
+
 ## Project status checklist
 
 ```
-PHASE  0  Paper understanding .................... DONE (this document + chat walkthrough)
-PHASE  1  Environment + project setup ............ DONE (Colab + Kaggle paths written & tested; awaiting your run)
-PHASE  2  Dataset ................................ PENDING
-PHASE  3  Sensitive attributes ................... PENDING
-PHASE  4  Sentence templates ..................... PENDING
-PHASE  5  Baseline language model ................ PENDING
-PHASE  6  Baseline bias evaluation ............... PENDING
-PHASE  7  Sentiment classifiers .................. PENDING
-PHASE  8  Sentiment projection classifier ........ PENDING
-PHASE  9  Counterfactual pairs for training ...... PENDING
-PHASE 10  Embedding regularization ............... PENDING
-PHASE 11  Sentiment regularization ............... PENDING
+PHASE  0  Paper understanding .................... DONE
+PHASE  1  Environment + project setup ............ DONE (code ready; user Kaggle run in progress / verify)
+PHASE  2  Dataset ................................ DONE (Kaggle: 28475/60/60, 445592 train seqs, verified)
+PHASE  3  Sensitive attributes ................... DONE (Appendix A lists; detection live in Phase 2 stats)
+PHASE  4  Sentence templates ..................... DONE (730 prompts; baker/accountant pair verified)
+PHASE  5  Baseline language model ................ DONE (Kaggle: 3000 steps, best_val_ppl=22.2753)
+PHASE  6  Baseline bias evaluation ............... SMOKE PASS (baker/accountant W1=0.0425 n=20); full n=100 optional
+PHASE  7  Sentiment classifiers .................. DONE (bert_sst + opinion_word with Phase 6)
+PHASE  8  Sentiment projection classifier ........ DONE (val_acc=0.841, f1=0.841, hidden=128)
+PHASE  9  Counterfactual pairs for training ...... DONE (code in src/counterfactual.py)
+PHASE 10  Embedding regularization ............... IN PROGRESS (train_debias mode=embedding)
+PHASE 11  Sentiment regularization ............... IN PROGRESS (train_debias mode=sentiment)
 PHASE 12  Three-step curriculum check ............ PENDING
 PHASE 13  Fairness metrics (W1 / I.F. / G.F.) .... PENDING
 PHASE 14  PPL + PPL_s ............................ PENDING
